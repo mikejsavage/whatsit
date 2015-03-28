@@ -1,43 +1,66 @@
 from __future__ import print_function
 
-import sys, os, json, threading
+import sys, os, json, threading, socket
+
+import config
 
 from yowsup.layers.interface                           import YowInterfaceLayer, ProtocolEntityCallback
 from yowsup.layers.protocol_messages.protocolentities  import TextMessageProtocolEntity
+from yowsup.layers.protocol_messages.protocolentities  import BroadcastTextMessage
 from yowsup.layers.protocol_receipts.protocolentities  import OutgoingReceiptProtocolEntity
 from yowsup.layers.protocol_acks.protocolentities      import OutgoingAckProtocolEntity
 
 # This class creates the input pipe and spawns a thread to read it
 # Each line we read is parsed as JSON and treated as a message
-class StdinReader( object ):
+class SocketReader( object ):
     def __init__( self ):
-        os.mkfifo( "in" )
+        addr = "/tmp/whatsit_%s.sock" % config.credentials[ "phone" ]
+        try:
+            os.unlink( addr )
+        except OSError:
+            if os.path.exists( addr ):
+                raise
 
-        self.th = threading.Thread( target = self.input )
+        self.sock = socket.socket( socket.AF_UNIX, socket.SOCK_STREAM )
+        self.sock.bind( addr )
+        self.sock.listen( 1 )
+
+        self.th = threading.Thread( target = self.accept )
         self.th.daemon = True
         self.th.start()
 
-    def input( self ):
+    def accept( self ):
         # Loop forever incase the other side closes the pipe
         while True:
-            with open( "in", "r" ) as fifo:
-                for line in iter( fifo.readline, "" ):
-                    print( line )
-                    try:
-                        cmd = json.loads( line )
-                        outgoing = TextMessageProtocolEntity( cmd[ "body" ], to = cmd[ "to" ] )
-                        self.toLower( outgoing )
-                    except:
-                        print( "Bad line:", line, file = sys.stderr )
+            self.client, _ = self.sock.accept()
+            fd = self.client.makefile()
 
-class EchoLayer( StdinReader, YowInterfaceLayer ):
+            for line in iter( fd.readline, "" ):
+                #try:
+                if True:
+                    cmd = json.loads( line )
+                    outgoing = None
+
+                    if cmd[ "action" ] == "message":
+                        outgoing = TextMessageProtocolEntity( cmd[ "body" ], to = cmd[ "to" ] )
+                    elif cmd[ "action" ] == "broadcast":
+                        outgoing = BroadcastTextMessage( cmd[ "to" ], cmd[ "body" ] )
+
+                    if outgoing:
+                        self.toLower( outgoing )
+                #except:
+                    #print( "Bad line:", line, file = sys.stderr )
+
+            self.client.close()
+            self.client = None
+
+class EchoLayer( SocketReader, YowInterfaceLayer ):
     def __init__( self ):
         # Start the input thread
         super( EchoLayer, self ).__init__()
         YowInterfaceLayer.__init__( self )
 
-        os.mkfifo( "out" )
-        self.fifo_out = open( "out", "w" )
+        self.client = None
 
     @ProtocolEntityCallback( "message" )
     def onMessage( self, messageProtocolEntity ):
@@ -52,17 +75,12 @@ class EchoLayer( StdinReader, YowInterfaceLayer ):
         self.toLower( ack )
 
     def onText( self, msg ):
-        try:
-            self.fifo_out.write( json.dumps( {
+        if self.client:
+            self.client.sendall( json.dumps( {
                 "from" : msg.getFrom(),
                 "body" : msg.getBody(),
             } ) + "\n" )
-            self.fifo_out.flush()
 
             # Acknowledge the incoming message
             receipt = OutgoingReceiptProtocolEntity( msg.getId(), msg.getFrom() )
             self.toLower( receipt )
-        except IOError:
-            # Reopen the pipe if the other side closes it
-            self.fifo_out.close()
-            self.fifo_out = open( "out", "w" )
