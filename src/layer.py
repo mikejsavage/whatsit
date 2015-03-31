@@ -36,8 +36,7 @@ class SocketReader( object ):
             fd = self.client.makefile()
 
             for line in iter( fd.readline, "" ):
-                #try:
-                if True:
+                try:
                     cmd = json.loads( line )
                     outgoing = None
 
@@ -48,8 +47,8 @@ class SocketReader( object ):
 
                     if outgoing:
                         self.toLower( outgoing )
-                #except:
-                    #print( "Bad line:", line, file = sys.stderr )
+                except:
+                    print( "Bad line:", line, file = sys.stderr )
 
             self.client.close()
             self.client = None
