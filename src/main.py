@@ -26,7 +26,6 @@ except AuthError as e:
     print( "Authentication Error: " + e.message )
 
 except KeyboardInterrupt:
-    print( "^C'd" )
     addr = "/tmp/whatsit_%s.sock" % config.credentials[ "phone" ]
     os.unlink( addr )
 
