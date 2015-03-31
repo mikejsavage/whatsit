@@ -2,39 +2,51 @@
 
 local cqueues = require( "cqueues" )
 local thread = require( "cqueues.thread" )
+local socket = require( "cqueues.socket" )
 
-local number = assert( arg[ 1 ], "need a number" ) .. "@s.whatsapp.net"
+if #arg ~= 2 then
+	print( "Usage: " .. arg[ 0 ] .. " <incoming> <outgoing>" )
+	os.exit( 1 )
+end
 
-local th = thread.start( function( con, number )
+local incoming = arg[ 1 ]
+local outgoing = arg[ 2 ]
+
+local th, ch = thread.start( function( ch, outgoing )
 	local cqueues = require( "cqueues" )
-	local fifo_in = io.open( "in", "w" )
 	local json = require( "cjson" )
 
-	while true do
-		local line = io.read( "*line" )
+	local loop = cqueues.new()
+	local _, sock = ch:recvfd()
 
-		fifo_in:write( json.encode( {
-			body = line,
-			to = number,
-		} ) .. "\n" )
-		fifo_in:flush()
-	end
-end, number )
+	loop:wrap( function()
+		while true do
+			local line = io.read( "*line" )
 
-local th2 = thread.start( function()
-	local cqueues = require( "cqueues" )
-	local fifo_out = io.open( "out", "r" )
-
-	while true do
-		local line = fifo_out:read( "*line" )
-		if line then
-			print( line )
-		else
-			fifo_out:close()
-			fifo_out = io.open( "out", "r" )
+			sock:write( json.encode( {
+				action = "message",
+				body = line,
+				to = outgoing,
+			} ) .. "\n" )
 		end
+	end )
+
+	assert( loop:loop() )
+end, outgoing .. "@s.whatsapp.net" )
+
+local loop = cqueues.new()
+local sock = assert( socket.connect( { path = "/tmp/whatsit_" .. incoming .. ".sock" } ) )
+
+ch:sendfd( "whatsit", sock )
+
+loop:wrap( function()
+	for line in sock:lines( "*l" ) do
+		print( line )
 	end
 end )
 
-th:join()
-th2:join()
+loop:wrap( function()
+	th:join()
+end )
+
+assert( loop:loop() )
