@@ -21,7 +21,12 @@ local th, ch = thread.start( function( ch, outgoing )
 
 	loop:wrap( function()
 		while true do
-			local line = io.read( "*line" )
+			local line = io.read( "*l" )
+
+			if line == "quit" then
+				sock:shutdown()
+				break
+			end
 
 			sock:write( json.encode( {
 				action = "message",
@@ -43,10 +48,7 @@ loop:wrap( function()
 	for line in sock:lines( "*l" ) do
 		print( line )
 	end
-end )
-
-loop:wrap( function()
-	th:join()
+	sock:shutdown()
 end )
 
 assert( loop:loop() )
