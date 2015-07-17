@@ -27,34 +27,33 @@ sock.bind( addr )
 sock.listen( 1 )
 
 try:
-    while True:
-        logger.info( "Waiting for a local client" )
-        client, _ = sock.accept()
-        fd = client.makefile()
-        logger.info( "Local client connected! Connecting to WhatsApp" )
+    logger.info( "Waiting for a local client" )
+    client, _ = sock.accept()
+    fd = client.makefile()
+    logger.info( "Local client connected! Connecting to WhatsApp" )
 
-        # We want to use fd in our DomainSocketLayer, so make a shim class
-        class ProxyLayer( DomainSocketLayer, YowInterfaceLayer ):
-            def __init__( self ):
-                self.fd = fd
-                super( ProxyLayer, self ).__init__()
+    # We want to use fd in our DomainSocketLayer, so make a shim class
+    class ProxyLayer( DomainSocketLayer, YowInterfaceLayer ):
+        def __init__( self ):
+            self.fd = fd
+            super( ProxyLayer, self ).__init__()
 
-        credentials = (
-            config.credentials[ "phone" ],
-            config.credentials[ "password" ]
-        )
+    credentials = (
+        config.credentials[ "phone" ],
+        config.credentials[ "password" ]
+    )
 
-        stack = (
-            YowStackBuilder()
-            .pushDefaultLayers( True )
-            .push( ProxyLayer )
-            .build()
-        )
+    stack = (
+        YowStackBuilder()
+        .pushDefaultLayers( True )
+        .push( ProxyLayer )
+        .build()
+    )
 
-        stack.setCredentials( credentials )
-        stack.broadcastEvent( YowLayerEvent( YowNetworkLayer.EVENT_STATE_CONNECT ) )
+    stack.setCredentials( credentials )
+    stack.broadcastEvent( YowLayerEvent( YowNetworkLayer.EVENT_STATE_CONNECT ) )
 
-        stack.loop()
+    stack.loop()
 
 except AuthError as e:
     print( "Authentication Error: " + e.message )
