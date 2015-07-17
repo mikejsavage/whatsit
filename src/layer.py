@@ -69,5 +69,5 @@ class DomainSocketLayer( YowInterfaceLayer ):
     # Boilerplate
     @ProtocolEntityCallback( "receipt" )
     def onReceipt( self, receipt ):
-        ack = OutgoingAckProtocolEntity( receipt.getId(), "receipt", "delivery" )
+        ack = OutgoingAckProtocolEntity( receipt.getId(), "receipt", "delivery", receipt.getFrom() )
         self.toLower( ack )
