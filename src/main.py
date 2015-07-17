@@ -17,6 +17,7 @@ config.init( sys.argv[ 1 ] )
 addr = "/tmp/whatsit_%s.sock" % config.credentials[ "phone" ]
 logger.info( "Binding to %s", addr )
 
+os.unlink( addr )
 sock = socket.socket( socket.AF_UNIX, socket.SOCK_STREAM )
 sock.bind( addr )
 sock.listen( 1 )
